@@ -1,0 +1,85 @@
+import requests
+from bs4 import BeautifulSoup
+import sqlite3
+import mysql.connector
+import pandas as pd
+
+# Define the URL of the Yelp website and the city to search for
+url = 'https://www.yelp.com/search?find_desc=Restaurants&find_loc=New+York+City%2C+NY'
+city = 'New York City'
+
+# Send a GET request to retrieve the HTML content of the page
+response = requests.get(url)
+
+# Parse the content using BeautifulSoup
+soup = BeautifulSoup(response.content, 'html.parser')
+
+# Extract the relevant data
+restaurant_names = [name.get_text() for name in soup.find_all('h4', class_='css-1l5lt1i')]
+ratings = [float(rating.get('aria-label').split()[0]) for rating in soup.find_all('div', class_='i-stars')]
+cuisines = [cuisine.get_text() for cuisine in soup.find_all('p', class_='css-1joxor6')]
+addresses = [address.get_text() for address in soup.find_all('p', class_='css-xtpg8e')]
+
+# Clean and format the data
+data = list(zip(restaurant_names, ratings, cuisines, addresses))
+data = [tuple(map(str.strip, row)) for row in data]
+data = list(set(data))
+
+# Connect to the database and create a table
+conn = sqlite3.connect('restaurants.db')
+c = conn.cursor()
+c.execute('''CREATE TABLE IF NOT EXISTS restaurants (name TEXT, rating REAL, cuisine TEXT, address TEXT)''')
+
+# Insert the data into the table
+c.executemany('INSERT INTO restaurants VALUES (?,?,?,?)', data)
+conn.commit()
+
+# Compute summary statistics
+avg_rating = sum(ratings) / len(ratings)
+max_rating = max(ratings)
+min_rating = min(ratings)
+
+# Sort the data by rating
+sorted_data = sorted(data, key=lambda x: x[1], reverse=True)
+
+# Print the top 10 restaurants by rating
+print(f'Top 10 Restaurants in {city} by Rating:\n')
+for i in range(10):
+    print(f'{i+1}. {sorted_data[i][0]} ({sorted_data[i][1]}) - {sorted_data[i][2]}, {sorted_data[i][3]}')
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# Create a DataFrame from the data
+df = pd.DataFrame(data, columns=['Name', 'Rating', 'Cuisine', 'Address'])
+
+# Generate summary statistics
+summary_stats = df.describe()
+
+# Generate a histogram of restaurant ratings
+plt.hist(df['Rating'], bins=20)
+plt.xlabel('Rating')
+plt.ylabel('Count')
+plt.title(f'Restaurant Ratings in {city}')
+plt.show()
+
+# Generate a bar chart of the top 10 cuisines
+top_cuisines = df['Cuisine'].value_counts().nlargest(10)
+plt.bar(top_cuisines.index, top_cuisines.values)
+plt.xticks(rotation=90)
+plt.xlabel('Cuisine')
+plt.ylabel('Count')
+plt.title(f'Top 10 Cuisines in {city}')
+plt.show()
+
+# Generate a scatter plot of ratings vs. price
+prices = [len(address.split(' ')) for address in df['Address']]
+plt.scatter(df['Rating'], prices)
+plt.xlabel('Rating')
+plt.ylabel('Price')
+plt.title(f'Restaurant Ratings vs. Price in {city}')
+plt.show()
+
+# Print the summary statistics
+print('\nSummary Statistics:')
+print(summary_stats)
+
