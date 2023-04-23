@@ -1,0 +1,102 @@
+import requests
+from bs4 import BeautifulSoup
+import sqlite3
+import mysql.connector
+import pandas as pd
+
+# Define the URL of the Yelp website and the city to search for
+url = 'https://www.yelp.com/search?find_desc=Restaurants&find_loc=New+York+City%2C+NY'
+city = 'New York City'
+
+# Send a GET request to retrieve the HTML content of the page
+response = requests.get(url)
+
+# Parse the content using BeautifulSoup
+soup = BeautifulSoup(response.content, 'html.parser')
+
+# Extract the relevant data
+restaurant_names = [name.get_text() for name in soup.find_all('h4', class_='css-1l5lt1i')]
+ratings = [float(rating.get('aria-label').split()[0]) for rating in soup.find_all('div', class_='i-stars')]
+cuisines = [cuisine.get_text() for cuisine in soup.find_all('p', class_='css-1joxor6')]
+addresses = [address.get_text() for address in soup.find_all('p', class_='css-xtpg8e')]
+
+# Clean and format the data
+data = list(zip(restaurant_names, ratings, cuisines, addresses))
+data = [tuple(map(str.strip, row)) for row in data]
+data = list(set(data))
+
+# Connect to the database and create a table
+conn = sqlite3.connect('restaurants.db')
+c = conn.cursor()
+c.execute('''CREATE TABLE IF NOT EXISTS restaurants (name TEXT, rating REAL, cuisine TEXT, address TEXT)''')
+
+# Insert the data into the table
+c.executemany('INSERT INTO restaurants VALUES (?,?,?,?)', data)
+conn.commit()
+
+# Compute summary statistics
+avg_rating = sum(ratings) / len(ratings)
+max_rating = max(ratings)
+min_rating = min(ratings)
+
+# Sort the data by rating
+sorted_data = sorted(data, key=lambda x: x[1], reverse=True)
+
+# Print the top 10 restaurants by rating
+print(f'Top 10 Restaurants in {city} by Rating:\n')
+for i in range(10):
+    print(f'{i+1}. {sorted_data[i][0]} ({sorted_data[i][1]}) - {sorted_data[i][2]}, {sorted_data[i][3]}')
+# Define the URL of the IMDB website
+url = 'https://www.imdb.com/chart/top/?ref_=nv_mv_250'
+
+# Send a GET request to retrieve the HTML content of the page
+response = requests.get(url)
+
+# Parse the content using BeautifulSoup
+soup = BeautifulSoup(response.content, 'html.parser')
+
+# Extract the relevant data
+titles = [title.get_text(strip=True) for title in soup.select('td.titleColumn > a')]
+years = [int(year.get_text(strip=True)[1:-1]) for year in soup.select('td.titleColumn > span.secondaryInfo')]
+ratings = [float(rating.get_text(strip=True)) for rating in soup.select('td.ratingColumn > strong')]
+Extract the relevant data
+titles = [title.get_text(strip=True) for title in soup.select('td.titleColumn > a')]
+years = [int(year.get_text(strip=True)[1:-1]) for year in soup.select('td.titleColumn > span.secondaryInfo')]
+ratings = [float(rating.get_text(strip=True)) for rating in soup.select('td.ratingColumn > strong')]
+
+#Clean and format the data
+data = list(zip(titles, years, ratings))
+data = [tuple(map(str.strip, row)) for row in data]
+data = list(set(data))
+
+#Connect to the database and create a table
+mydb = mysql.connector.connect(
+host="localhost",
+user="yourusername",
+password="yourpassword",
+database="imdb"
+)
+mycursor = mydb.cursor()
+mycursor.execute('''CREATE TABLE IF NOT EXISTS movies (title TEXT, year INT, rating REAL)''')
+
+#Insert the data into the table
+for row in data:
+sql = "INSERT INTO movies (title, year, rating) VALUES (%s, %s, %s)"
+val = (row[0], row[1], row[2])
+mycursor.execute(sql, val)
+mydb.commit()
+
+#Compute summary statistics
+avg_rating = sum(ratings) / len(ratings)
+max_rating = max(ratings)
+min_rating = min(ratings)
+
+#Sort the data by rating
+sorted_data = sorted(data, key=lambda x: x[2], reverse=True)
+
+#Convert the data to a Pandas dataframe
+df = pd.DataFrame(sorted_data, columns=['Title', 'Year', 'Rating'])
+
+#Print the top 10 movies by rating
+print(df.head(10))
+
