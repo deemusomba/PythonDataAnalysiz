@@ -1,8 +1,8 @@
 import requests
 from bs4 import BeautifulSoup
 import sqlite3
-import mysql.connector
 import pandas as pd
+import matplotlib.pyplot as plt
 
 # Define the URL of the Yelp website and the city to search for
 url = 'https://www.yelp.com/search?find_desc=Restaurants&find_loc=New+York+City%2C+NY'
@@ -46,57 +46,37 @@ sorted_data = sorted(data, key=lambda x: x[1], reverse=True)
 print(f'Top 10 Restaurants in {city} by Rating:\n')
 for i in range(10):
     print(f'{i+1}. {sorted_data[i][0]} ({sorted_data[i][1]}) - {sorted_data[i][2]}, {sorted_data[i][3]}')
-# Define the URL of the IMDB website
-url = 'https://www.imdb.com/chart/top/?ref_=nv_mv_250'
+# Create a DataFrame from the data
+df = pd.DataFrame(data, columns=['Name', 'Rating', 'Cuisine', 'Address'])
 
-# Send a GET request to retrieve the HTML content of the page
-response = requests.get(url)
+# Generate summary statistics
+summary_stats = df.describe()
 
-# Parse the content using BeautifulSoup
-soup = BeautifulSoup(response.content, 'html.parser')
+# Generate a histogram of restaurant ratings
+plt.hist(df['Rating'], bins=20)
+plt.xlabel('Rating')
+plt.ylabel('Count')
+plt.title(f'Restaurant Ratings in {city}')
+plt.show()
 
-# Extract the relevant data
-titles = [title.get_text(strip=True) for title in soup.select('td.titleColumn > a')]
-years = [int(year.get_text(strip=True)[1:-1]) for year in soup.select('td.titleColumn > span.secondaryInfo')]
-ratings = [float(rating.get_text(strip=True)) for rating in soup.select('td.ratingColumn > strong')]
-Extract the relevant data
-titles = [title.get_text(strip=True) for title in soup.select('td.titleColumn > a')]
-years = [int(year.get_text(strip=True)[1:-1]) for year in soup.select('td.titleColumn > span.secondaryInfo')]
-ratings = [float(rating.get_text(strip=True)) for rating in soup.select('td.ratingColumn > strong')]
+# Generate a bar chart of the top 10 cuisines
+top_cuisines = df['Cuisine'].value_counts().nlargest(10)
+plt.bar(top_cuisines.index, top_cuisines.values)
+plt.xticks(rotation=90)
+plt.xlabel('Cuisine')
+plt.ylabel('Count')
+plt.title(f'Top 10 Cuisines in {city}')
+plt.show()
 
-#Clean and format the data
-data = list(zip(titles, years, ratings))
-data = [tuple(map(str.strip, row)) for row in data]
-data = list(set(data))
+# Generate a scatter plot of ratings vs. price
+prices = [len(address.split(' ')) for address in df['Address']]
+plt.scatter(df['Rating'], prices)
+plt.xlabel('Rating')
+plt.ylabel('Price')
+plt.title(f'Restaurant Ratings vs. Price in {city}')
+plt.show()
 
-#Connect to the database and create a table
-mydb = mysql.connector.connect(
-host="localhost",
-user="yourusername",
-password="yourpassword",
-database="imdb"
-)
-mycursor = mydb.cursor()
-mycursor.execute('''CREATE TABLE IF NOT EXISTS movies (title TEXT, year INT, rating REAL)''')
-
-#Insert the data into the table
-for row in data:
-sql = "INSERT INTO movies (title, year, rating) VALUES (%s, %s, %s)"
-val = (row[0], row[1], row[2])
-mycursor.execute(sql, val)
-mydb.commit()
-
-#Compute summary statistics
-avg_rating = sum(ratings) / len(ratings)
-max_rating = max(ratings)
-min_rating = min(ratings)
-
-#Sort the data by rating
-sorted_data = sorted(data, key=lambda x: x[2], reverse=True)
-
-#Convert the data to a Pandas dataframe
-df = pd.DataFrame(sorted_data, columns=['Title', 'Year', 'Rating'])
-
-#Print the top 10 movies by rating
-print(df.head(10))
+# Print the summary statistics
+print('\nSummary Statistics:')
+print(summary_stats)
 
